@@ -1,4 +1,4 @@
-﻿# Tempo
+# FocusFlow
 
 A mobile-first focus timer built with plain HTML, CSS and JavaScript. It has Focus, Short Break and Long Break cycles, a simple task list, focus ratings, basic statistics, local storage, and an optional Google Sheets connection. Default cycle: 60-minute focus, 15-minute short break, 30-minute long break after 2 focus sessions. Change the durations and cycle length on the Settings screen.
 
@@ -18,7 +18,7 @@ Open <http://localhost:8000>. The app stores tasks and sessions in this browser'
 2. Copy `Code.gs` into the script editor and save.
 3. Deploy it as a **Web app**. Set **Execute as** to yourself and access to **Anyone**. Authorize the requested spreadsheet access and copy the deployed web app URL.
 4. Paste the URL into `googleAppsScriptUrl` in `config.js`.
-5. Reload Tempo. Apps Script creates the `Tasks` and `Sessions` sheets with headers as data is read or written.
+5. Reload FocusFlow. Apps Script creates the `Tasks` and `Sessions` sheets with headers as data is read or written.
 
 The web app reads both sheets with `?action=all` and writes task/session records as they change. Browser localStorage remains enabled as an offline fallback. Deploy `Code.gs` as a web app again after changing the script.
 

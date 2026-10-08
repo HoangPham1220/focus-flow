@@ -1,6 +1,6 @@
 {
-  "name": "Tempo — Focus",
-  "short_name": "Tempo",
+  "name": "FocusFlow",
+  "short_name": "FocusFlow",
   "description": "Focus, rest, repeat.",
   "start_url": "./",
   "scope": "./",

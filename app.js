@@ -33,7 +33,7 @@
     const url = apiUrl(); if (!url) return;
     try {
       await fetch(url, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
-    } catch (error) { console.warn('Tempo Sheets sync failed; data remains saved locally.', error); }
+    } catch (error) { console.warn('FocusFlow Sheets sync failed; data remains saved locally.', error); }
   }
   function upsertTask(task) { syncRequest({ action: 'saveTask', task }); }
   function upsertSession(session) { syncRequest({ action: 'saveSession', session }); }
@@ -190,7 +190,7 @@
       if (!selectedTask()) data.selectedTaskId = null;
       persist(); renderTasks(); renderStats();
     }
-  }).catch(error => console.warn('Tempo could not load Google Sheets; using local data.', error));
+  }).catch(error => console.warn('FocusFlow could not load Google Sheets; using local data.', error));
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('./service-worker.js').catch(() => {});
 })();
 
