@@ -1,6 +1,6 @@
 ﻿# Tempo
 
-A mobile-first focus timer built with plain HTML, CSS and JavaScript. It has Focus and Break cycles, a simple task list, focus ratings, basic statistics, local storage, and an optional Google Sheets connection.
+A mobile-first focus timer built with plain HTML, CSS and JavaScript. It has Focus, Short Break and Long Break cycles, a simple task list, focus ratings, basic statistics, local storage, and an optional Google Sheets connection. Default cycle: 60-minute focus, 15-minute short break, 30-minute long break after 2 focus sessions. Change the durations and cycle length on the Settings screen.
 
 ## Run locally
 

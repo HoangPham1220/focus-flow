@@ -1,7 +1,7 @@
 (() => {
   const $ = selector => document.querySelector(selector);
   const storeKey = 'tempo-data-v1';
-  const duration = { focus: 60 * 60, break: 15 * 60 };
+  const defaultSettings = { focusDuration: 60, shortBreakDuration: 15, longBreakDuration: 30, sessionsBeforeLongBreak: 2 };
   const ringLength = 2 * Math.PI * 130;
   let data = loadLocal();
   let timer = data.timer;
@@ -12,13 +12,21 @@
   function loadLocal() {
     try {
       const saved = JSON.parse(localStorage.getItem(storeKey) || '{}');
-      return { tasks: saved.tasks || [], sessions: saved.sessions || [], selectedTaskId: saved.selectedTaskId || null,
-        timer: saved.timer || { mode: 'focus', status: 'idle', remaining: duration.focus, startedAt: null, phaseStartedAt: null, focusElapsed: 0 } };
-    } catch { return { tasks: [], sessions: [], selectedTaskId: null, timer: { mode: 'focus', status: 'idle', remaining: duration.focus, startedAt: null, phaseStartedAt: null, focusElapsed: 0 } }; }
+      const settings = { ...defaultSettings, ...(saved.settings || {}) };
+      const timer = saved.timer || { mode: 'focus', status: 'idle', remaining: settings.focusDuration * 60, startedAt: null, phaseStartedAt: null, focusElapsed: 0, focusesInCycle: 0 };
+      if (timer.mode === 'break') timer.mode = 'shortBreak';
+      timer.focusesInCycle ??= 0;
+      timer.remaining ??= settings[`${timer.mode}Duration`] * 60;
+      return { tasks: saved.tasks || [], sessions: saved.sessions || [], selectedTaskId: saved.selectedTaskId || null, settings, timer };
+    } catch { return { tasks: [], sessions: [], selectedTaskId: null, settings: { ...defaultSettings }, timer: { mode: 'focus', status: 'idle', remaining: defaultSettings.focusDuration * 60, startedAt: null, phaseStartedAt: null, focusElapsed: 0, focusesInCycle: 0 } }; }
   }
   function persist() {
     data.timer = timer;
     localStorage.setItem(storeKey, JSON.stringify(data));
+  }
+  function timerDuration(mode) {
+    const setting = mode === 'focus' ? 'focusDuration' : mode === 'shortBreak' ? 'shortBreakDuration' : 'longBreakDuration';
+    return data.settings[setting] * 60;
   }
   function apiUrl() { return window.TEMPO_CONFIG?.googleAppsScriptUrl?.trim() || ''; }
   async function syncRequest(payload) {
@@ -49,11 +57,13 @@
   function fmtTime(seconds) { const value = Math.max(0, Math.ceil(seconds)); return `${String(Math.floor(value / 60)).padStart(2,'0')}:${String(value % 60).padStart(2,'0')}`; }
   function renderTimer() {
     const mode = timer.mode;
-    $('#mode-label').textContent = mode === 'focus' ? 'FOCUS SESSION' : 'BREAK TIME';
+    $('#mode-label').textContent = mode === 'focus' ? 'FOCUS SESSION' : mode === 'shortBreak' ? 'SHORT BREAK' : 'LONG BREAK';
+    $('#cycle-note').textContent = `${data.settings.focusDuration} min focus · ${data.settings.shortBreakDuration} min short · ${data.settings.longBreakDuration} min long · every ${data.settings.sessionsBeforeLongBreak} sessions`;
     $('#timer-time').textContent = fmtTime(timer.remaining);
     $('#timer-caption').textContent = timer.status === 'running' ? (mode === 'focus' ? 'STAY WITH THE MOMENT' : 'TAKE A BREATH') : timer.status === 'paused' ? 'PAUSED' : 'READY WHEN YOU ARE';
     $('#live-dot').style.background = mode === 'focus' ? 'var(--lime)' : '#8fc8b1';
-    const fraction = timer.remaining / duration[mode];
+    $('#start-button').querySelector('span:first-child').textContent = mode === 'focus' ? 'Start focus' : 'Start break';
+    const fraction = timer.remaining / (timer.phaseDuration || timerDuration(mode));
     $('#ring-progress').style.strokeDasharray = ringLength;
     $('#ring-progress').style.strokeDashoffset = ringLength * (1 - fraction);
     $('#ring-progress').style.stroke = mode === 'focus' ? 'var(--lime)' : '#8fc8b1';
@@ -79,6 +89,12 @@
     const max = Math.max(1, ...perDay);
     $('#week-days').innerHTML = weekDates.map((date, index) => `<div class="week-day ${index === 6 ? 'today' : ''}"><div class="week-bar-track"><span class="week-bar" style="height:${Math.max(7, perDay[index] / max * 44)}px"></span></div><span class="week-day-label">${date.toLocaleDateString('en-US',{weekday:'short'}).slice(0,1)}</span></div>`).join('');
   }
+  function renderSettings() {
+    $('#focus-duration').value = data.settings.focusDuration;
+    $('#short-break-duration').value = data.settings.shortBreakDuration;
+    $('#long-break-duration').value = data.settings.longBreakDuration;
+    $('#sessions-before-long-break').value = data.settings.sessionsBeforeLongBreak;
+  }
   function setScreen(name) {
     document.querySelectorAll('.screen').forEach(screen => screen.classList.toggle('active', screen.id === `screen-${name}`));
     document.querySelectorAll('.nav-item').forEach(button => button.classList.toggle('active', button.dataset.screen === name));
@@ -91,17 +107,22 @@
   }
   function finishFocus(endedAt = new Date().toISOString()) {
     if (endHandled) return; endHandled = true;
-    const started = timer.startedAt ? new Date(timer.startedAt).getTime() : Date.now() - (duration.focus - timer.remaining) * 1000;
+    const plannedDuration = timer.plannedDuration || timerDuration('focus');
+    const started = timer.startedAt ? new Date(timer.startedAt).getTime() : Date.now() - (plannedDuration - timer.remaining) * 1000;
     const ongoing = timer.status === 'running' && timer.phaseStartedAt ? (Date.now() - new Date(timer.phaseStartedAt).getTime()) / 1000 : 0;
     const actual = Math.max(0, Math.floor(timer.focusElapsed + ongoing));
-    const session = { id: crypto.randomUUID(), task_id: data.selectedTaskId, planned_duration: duration.focus, actual_duration: actual, started_at: timer.startedAt || new Date(started).toISOString(), ended_at: endedAt, focus_score: null };
+    const session = { id: crypto.randomUUID(), task_id: data.selectedTaskId, planned_duration: plannedDuration, actual_duration: actual, started_at: timer.startedAt || new Date(started).toISOString(), ended_at: endedAt, focus_score: null };
     data.sessions.push(session); upsertSession(session); pendingScoreId = session.id;
     $('#score-dialog').showModal();
-    timer.mode = 'break'; timer.status = 'idle'; timer.remaining = duration.break; timer.startedAt = null; timer.phaseStartedAt = null; timer.focusElapsed = 0;
+    timer.focusesInCycle = (timer.focusesInCycle || 0) + 1;
+    timer.mode = timer.focusesInCycle >= data.settings.sessionsBeforeLongBreak ? 'longBreak' : 'shortBreak';
+    timer.status = 'idle'; timer.remaining = timerDuration(timer.mode); timer.phaseDuration = timer.remaining; timer.startedAt = null; timer.phaseStartedAt = null; timer.focusElapsed = 0; timer.plannedDuration = null;
     persist(); renderTimer(); renderStats();
   }
   function finishBreak() {
-    notifyEnd('break'); timer.mode = 'focus'; timer.status = 'idle'; timer.remaining = duration.focus; timer.startedAt = null; timer.phaseStartedAt = null; timer.focusElapsed = 0;
+    notifyEnd(timer.mode);
+    if (timer.mode === 'longBreak') timer.focusesInCycle = 0;
+    timer.mode = 'focus'; timer.status = 'idle'; timer.remaining = timerDuration('focus'); timer.phaseDuration = timer.remaining; timer.startedAt = null; timer.phaseStartedAt = null; timer.focusElapsed = 0; timer.plannedDuration = null;
     persist(); renderTimer();
   }
   function tick() {
@@ -115,8 +136,8 @@
   }
   function startTimer() {
     if (timer.mode === 'focus' && !selectedTask()) { setScreen('tasks'); $('#task-input').focus(); return; }
-    endHandled = false; timer.status = 'running'; timer.remainingAtStart = timer.remaining; timer.phaseStartedAt = new Date().toISOString();
-    if (timer.mode === 'focus' && !timer.startedAt) timer.startedAt = timer.phaseStartedAt;
+    endHandled = false; timer.status = 'running'; timer.remainingAtStart = timer.remaining; timer.phaseDuration = timer.phaseDuration || timerDuration(timer.mode); timer.phaseStartedAt = new Date().toISOString();
+    if (timer.mode === 'focus' && !timer.startedAt) { timer.startedAt = timer.phaseStartedAt; timer.plannedDuration = timerDuration('focus'); }
     persist(); renderTimer();
     if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {});
   }
@@ -136,7 +157,7 @@
   $('#pause-button').addEventListener('click', () => { tick(); if (timer.status !== 'running') return; if (timer.mode === 'focus') timer.focusElapsed += Math.max(0, (Date.now() - new Date(timer.phaseStartedAt).getTime()) / 1000); timer.status = 'paused'; timer.phaseStartedAt = null; persist(); renderTimer(); });
   $('#stop-button').addEventListener('click', () => {
     if (timer.mode === 'focus' && timer.startedAt) { const ended = new Date().toISOString(); finishFocus(ended); notifyEnd('focus'); }
-    else { timer.status = 'idle'; timer.mode = 'focus'; timer.remaining = duration.focus; timer.startedAt = null; timer.phaseStartedAt = null; timer.focusElapsed = 0; persist(); renderTimer(); }
+    else { timer.status = 'idle'; timer.mode = 'focus'; timer.remaining = timerDuration('focus'); timer.phaseDuration = timer.remaining; timer.startedAt = null; timer.phaseStartedAt = null; timer.focusElapsed = 0; timer.plannedDuration = null; persist(); renderTimer(); }
   });
   $('#score-options').addEventListener('click', event => {
     const button = event.target.closest('[data-score]'); if (!button) return;
@@ -144,10 +165,24 @@
     pendingScoreId = null; $('#score-dialog').close(); renderStats();
   });
   $('#skip-score').addEventListener('click', () => { pendingScoreId = null; $('#score-dialog').close(); });
+  $('#settings-form').addEventListener('submit', event => {
+    event.preventDefault();
+    const fields = ['focus-duration', 'short-break-duration', 'long-break-duration', 'sessions-before-long-break'].map(id => $(`#${id}`));
+    if (!fields.every(field => field.checkValidity() && Number.isInteger(Number(field.value)) && Number(field.value) > 0)) {
+      fields.find(field => !field.checkValidity() || !Number.isInteger(Number(field.value)) || Number(field.value) <= 0)?.reportValidity();
+      return;
+    }
+    data.settings = {
+      focusDuration: Number(fields[0].value), shortBreakDuration: Number(fields[1].value),
+      longBreakDuration: Number(fields[2].value), sessionsBeforeLongBreak: Number(fields[3].value)
+    };
+    if (timer.status === 'idle') { timer.remaining = timerDuration(timer.mode); timer.phaseDuration = timer.remaining; }
+    persist(); renderTimer(); $('#settings-feedback').textContent = 'Settings saved';
+  });
   document.querySelectorAll('.nav-item').forEach(button => button.addEventListener('click', () => setScreen(button.dataset.screen)));
   $('#today-label').textContent = new Date().toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
   $('#stats-date').textContent = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' });
-  renderTimer(); renderStats();
+  renderSettings(); renderTimer(); renderStats(); persist();
   setInterval(tick, 1000);
   if (apiUrl()) fetch(`${apiUrl()}?action=all`).then(response => response.json()).then(remote => {
     if (Array.isArray(remote.tasks) && Array.isArray(remote.sessions)) {

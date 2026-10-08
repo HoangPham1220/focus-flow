@@ -37,7 +37,7 @@
           <button class="button button-secondary hidden" id="resume-button" type="button">Resume</button>
           <button class="button button-stop hidden" id="stop-button" type="button" aria-label="Stop timer">Stop</button>
         </div>
-        <p class="cycle-note">60 min focus <span>·</span> 15 min break</p>
+        <p class="cycle-note" id="cycle-note">60 min focus <span>·</span> 15 min short break <span>·</span> 30 min long break</p>
       </div>
     </section>
 
@@ -58,10 +58,23 @@
       <p class="stats-note">A little focus, every day.</p>
     </section>
 
+    <section class="screen" id="screen-settings" aria-labelledby="settings-heading">
+      <div class="page-heading"><div><p class="eyebrow">MAKE YOUR OWN RHYTHM</p><h1 id="settings-heading">Settings</h1></div></div>
+      <form class="settings-form" id="settings-form">
+        <label class="setting-row" for="focus-duration"><span><strong>Focus duration</strong><small>Minutes per focus session</small></span><input id="focus-duration" name="focusDuration" type="number" min="1" step="1" required></label>
+        <label class="setting-row" for="short-break-duration"><span><strong>Short Break</strong><small>Minutes per short break</small></span><input id="short-break-duration" name="shortBreakDuration" type="number" min="1" step="1" required></label>
+        <label class="setting-row" for="long-break-duration"><span><strong>Long Break</strong><small>Minutes per long break</small></span><input id="long-break-duration" name="longBreakDuration" type="number" min="1" step="1" required></label>
+        <label class="setting-row" for="sessions-before-long-break"><span><strong>Sessions before Long Break</strong><small>Completed focus sessions</small></span><input id="sessions-before-long-break" name="sessionsBeforeLongBreak" type="number" min="1" step="1" required></label>
+        <button class="button button-primary settings-save" type="submit">Save settings</button>
+        <p class="settings-feedback" id="settings-feedback" aria-live="polite"></p>
+      </form>
+    </section>
+
     <nav class="bottom-nav" aria-label="Main navigation">
       <button class="nav-item active" data-screen="focus" type="button"><span class="nav-icon">◷</span><span>Focus</span></button>
       <button class="nav-item" data-screen="tasks" type="button"><span class="nav-icon">☷</span><span>Tasks</span></button>
       <button class="nav-item" data-screen="statistics" type="button"><span class="nav-icon">▥</span><span>Statistics</span></button>
+      <button class="nav-item" data-screen="settings" type="button"><span class="nav-icon">⚙</span><span>Settings</span></button>
     </nav>
   </main>
 
