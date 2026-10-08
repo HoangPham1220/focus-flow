@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#10120f">
+  <meta name="description" content="Tempo — focus, rest, repeat.">
+  <title>Tempo — Focus</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#focus" aria-label="Tempo Focus"><span class="brand-mark">t</span><span>tempo</span></a>
+      <span class="today-label" id="today-label"></span>
+    </header>
+
+    <section class="screen active" id="screen-focus" aria-labelledby="focus-heading">
+      <div class="focus-content">
+        <div class="eyebrow"><span class="live-dot" id="live-dot"></span><span id="mode-label">FOCUS SESSION</span></div>
+        <div class="timer-wrap" id="timer-wrap">
+          <svg class="timer-ring" viewBox="0 0 280 280" aria-hidden="true">
+            <circle class="ring-track" cx="140" cy="140" r="130"></circle>
+            <circle class="ring-progress" id="ring-progress" cx="140" cy="140" r="130"></circle>
+          </svg>
+          <div class="timer-center"><span class="timer-time" id="timer-time">60:00</span><span class="timer-caption" id="timer-caption">READY WHEN YOU ARE</span></div>
+        </div>
+        <div class="current-task">
+          <span class="task-kicker">CURRENT TASK</span>
+          <button class="task-picker" id="task-picker" type="button"><span id="current-task-title">Choose a task</span><span class="chevron">↗</span></button>
+        </div>
+        <div class="timer-actions" id="timer-actions">
+          <button class="button button-primary" id="start-button" type="button"><span>Start focus</span><span class="button-arrow">↗</span></button>
+          <button class="button button-secondary hidden" id="pause-button" type="button">Pause</button>
+          <button class="button button-secondary hidden" id="resume-button" type="button">Resume</button>
+          <button class="button button-stop hidden" id="stop-button" type="button" aria-label="Stop timer">Stop</button>
+        </div>
+        <p class="cycle-note">60 min focus <span>·</span> 15 min break</p>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-tasks" aria-labelledby="tasks-heading">
+      <div class="page-heading"><div><p class="eyebrow">MAKE SPACE TO FOCUS</p><h1 id="tasks-heading">Your tasks</h1></div><span class="count-pill" id="task-count">0 open</span></div>
+      <form class="task-form" id="task-form"><input id="task-input" type="text" maxlength="120" placeholder="What needs your focus?" aria-label="New task" required><button type="submit" aria-label="Add task">＋</button></form>
+      <div class="task-list" id="task-list"></div>
+      <p class="empty-state" id="tasks-empty">Nothing on your list yet.<br>Start with one small thing.</p>
+    </section>
+
+    <section class="screen" id="screen-statistics" aria-labelledby="stats-heading">
+      <div class="page-heading"><div><p class="eyebrow">SHOWING UP ADDS UP</p><h1 id="stats-heading">Statistics</h1></div><span class="stats-date" id="stats-date"></span></div>
+      <div class="stats-grid">
+        <article class="stat-card stat-feature"><span class="stat-label">FOCUS TIME TODAY</span><strong id="today-time">0m</strong><span class="stat-foot">time well spent</span><span class="stat-spark" aria-hidden="true">✳</span></article>
+        <article class="stat-card"><span class="stat-label">SESSIONS TODAY</span><strong id="today-sessions">0</strong><span class="stat-foot">completed sessions</span></article>
+      </div>
+      <article class="week-card"><div class="week-head"><div><span class="stat-label">LAST 7 DAYS</span><strong id="week-time">0m</strong></div><span class="week-icon">↗</span></div><div class="week-days" id="week-days"></div></article>
+      <p class="stats-note">A little focus, every day.</p>
+    </section>
+
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <button class="nav-item active" data-screen="focus" type="button"><span class="nav-icon">◷</span><span>Focus</span></button>
+      <button class="nav-item" data-screen="tasks" type="button"><span class="nav-icon">☷</span><span>Tasks</span></button>
+      <button class="nav-item" data-screen="statistics" type="button"><span class="nav-icon">▥</span><span>Statistics</span></button>
+    </nav>
+  </main>
+
+  <dialog id="score-dialog" class="score-dialog"><form method="dialog" class="score-card"><span class="score-spark">✳</span><p class="eyebrow">SESSION COMPLETE</p><h2>Focus của session này thế nào?</h2><p class="score-subtitle">Take a moment to reflect.</p><div class="score-options" id="score-options"><button type="button" data-score="1">1</button><button type="button" data-score="2">2</button><button type="button" data-score="3">3</button><button type="button" data-score="4">4</button><button type="button" data-score="5">5</button></div><button class="skip-score" id="skip-score" type="button">Not now</button></form></dialog>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

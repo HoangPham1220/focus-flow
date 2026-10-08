@@ -1,0 +1,11 @@
+{
+  "name": "Tempo — Focus",
+  "short_name": "Tempo",
+  "description": "Focus, rest, repeat.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#10120f",
+  "theme_color": "#10120f",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
