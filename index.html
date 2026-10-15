@@ -45,7 +45,7 @@
 
     <section class="screen" id="screen-tasks" aria-labelledby="tasks-heading">
       <div class="page-heading"><div><p class="eyebrow">MAKE SPACE TO FOCUS</p><h1 id="tasks-heading">Your tasks</h1></div><span class="count-pill" id="task-count">0 open</span></div>
-      <form class="task-form" id="task-form"><input id="task-input" type="text" maxlength="120" placeholder="What needs your focus?" aria-label="New task" required><button type="submit" aria-label="Add task">＋</button></form>
+      <form class="task-form" id="task-form"><input id="task-input" type="text" maxlength="120" placeholder="What needs your focus?" aria-label="New task or group" required><select id="task-kind" aria-label="Create a task or group"><option value="task">Task</option><option value="group">Group</option></select><button type="submit" aria-label="Add task or group">＋</button></form>
       <div class="task-list" id="task-list"></div>
       <p class="empty-state" id="tasks-empty">Nothing on your list yet.<br>Start with one small thing.</p>
     </section>

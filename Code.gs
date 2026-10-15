@@ -1,5 +1,5 @@
 ﻿const SPREADSHEET_ID = 'PASTE_SPREADSHEET_ID_HERE';
-const TASK_HEADERS = ['id', 'title', 'status', 'created_at', 'completed_at'];
+const TASK_HEADERS = ['id', 'title', 'status', 'created_at', 'completed_at', 'type', 'parent_id'];
 const SESSION_HEADERS = ['id', 'task_id', 'planned_duration', 'actual_duration', 'started_at', 'ended_at', 'focus_score'];
 
 // Run once from the Apps Script editor opened through Sheets > Extensions.
@@ -20,7 +20,7 @@ function doGet(e) {
   try {
     if (e && e.parameter.action && e.parameter.action !== 'all') throw new Error('Unknown action');
     lock.waitLock(20000);
-    return json_({ tasks: readRows_('Tasks', TASK_HEADERS), sessions: readRows_('Sessions', SESSION_HEADERS) });
+    return json_({ task_schema_version: 2, tasks: readRows_('Tasks', TASK_HEADERS), sessions: readRows_('Sessions', SESSION_HEADERS) });
   } catch (error) { return json_({ error: error.message }); }
   finally { if (lock.hasLock()) lock.releaseLock(); }
 }
@@ -47,6 +47,9 @@ function validate_(record, isTask) {
     if (typeof record.title !== 'string' || !record.title.trim() || record.title.length > 120) throw new Error('Invalid task title');
     if (!['open', 'completed', 'deleted'].includes(record.status)) throw new Error('Invalid task status');
     if (!Number.isFinite(Date.parse(record.created_at))) throw new Error('Invalid task creation time');
+    if (record.type != null && !['task', 'group'].includes(record.type)) throw new Error('Invalid task type');
+    if (record.parent_id != null && typeof record.parent_id !== 'string') throw new Error('Invalid parent ID');
+    if (record.type === 'group' && record.parent_id) throw new Error('Groups cannot have a parent');
   } else {
     if (!Number.isFinite(record.planned_duration) || record.planned_duration <= 0) throw new Error('Invalid planned duration');
     if (!Number.isFinite(record.actual_duration) || record.actual_duration < 0) throw new Error('Invalid actual duration');
@@ -64,7 +67,7 @@ function readRows_(name, headers) {
   // Return its visible text, while keeping session durations numeric.
   if (name === 'Tasks') {
     const titles = sheet.getRange(2, 2, values.length, 1).getDisplayValues();
-    values.forEach((row, index) => { row[1] = titles[index][0]; });
+    values.forEach((row, index) => { row[1] = titles[index][0]; row[5] = row[5] || 'task'; });
   }
   return values
     .filter(row => row[0] !== '')
@@ -75,6 +78,20 @@ function saveRow_(name, headers, record, reopen = false) {
   const sheet = getSheet_(name, headers);
   const existing = sheet.getLastRow() > 1 ? sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues() : [];
   const index = existing.findIndex(row => row[0] === record.id);
+  if (name === 'Tasks') {
+    const storedType = index >= 0 ? existing[index][5] || 'task' : null;
+    const storedParent = index >= 0 ? existing[index][6] || null : null;
+    record.type = record.type || storedType || 'task';
+    record.parent_id = record.parent_id || storedParent || null;
+    if (record.type === 'group' && record.status !== 'deleted') record.status = 'open';
+    if (index >= 0 && (record.type !== storedType || record.parent_id !== storedParent)) throw new Error('Task type and parent cannot be changed');
+    if (record.type === 'group' && record.parent_id) throw new Error('Groups cannot have a parent');
+    if (record.parent_id) {
+      const parent = existing.find(row => row[0] === record.parent_id);
+      if (!parent || parent[5] !== 'group') throw new Error('Parent group not found');
+      if (parent[2] === 'deleted') record.status = 'deleted';
+    }
+  }
   if (index >= 0 && name === 'Tasks' && Object.prototype.toString.call(existing[index][1]) === '[object Date]' && record.title === existing[index][1].toISOString()) {
     // An old client may send back the ISO title produced by getValues().
     record.title = sheet.getRange(index + 2, 2, 1, 1).getDisplayValues()[0][0];
@@ -96,6 +113,13 @@ function saveRow_(name, headers, record, reopen = false) {
   // Apply text format BEFORE writing so date-like titles remain exact strings.
   if (name === 'Tasks') sheet.getRange(targetRow, 2, 1, 1).setNumberFormat('@');
   sheet.getRange(targetRow, 1, 1, headers.length).setValues([row]);
+  if (name === 'Tasks' && record.type === 'group' && record.status === 'deleted') {
+    existing.forEach((child, childIndex) => {
+      if (child[6] !== record.id || child[2] === 'deleted') return;
+      sheet.getRange(childIndex + 2, 3, 1, 1).setValue('deleted');
+      sheet.getRange(childIndex + 2, 5, 1, 1).clearContent();
+    });
+  }
 }
 
 function getSheet_(name, headers) {
@@ -105,8 +129,15 @@ function getSheet_(name, headers) {
   const spreadsheet = SpreadsheetApp.openById(id);
   if (!properties.getProperty('SPREADSHEET_ID')) properties.setProperty('SPREADSHEET_ID', id);
   const sheet = spreadsheet.getSheetByName(name) || spreadsheet.insertSheet(name);
+  if (sheet.getMaxColumns() < headers.length) sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
   if (sheet.getLastRow() === 0) sheet.appendRow(headers);
   const actual = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
+  // Append only the two new columns to legacy Tasks sheets; preserve existing data.
+  if (name === 'Tasks' && headers.slice(0, 5).every((header, index) => actual[index] === header)) {
+    headers.slice(5).forEach((header, index) => {
+      if (actual[index + 5] === '') { sheet.getRange(1, index + 6, 1, 1).setValue(header); actual[index + 5] = header; }
+    });
+  }
   if (headers.some((header, index) => actual[index] !== header)) throw new Error('Unexpected headers in ' + name + '. Restore the documented column order.');
   return sheet;
 }

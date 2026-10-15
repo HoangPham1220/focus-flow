@@ -28,7 +28,7 @@ Mở <http://localhost:8000>. Dùng localhost hoặc HTTPS để bật service w
 5. Mở `/exec?action=all` bằng cửa sổ ẩn danh để kiểm tra phản hồi JSON. Script tự tạo hai tab và hàng tiêu đề:
 
 ```text
-Tasks:    id | title | status | created_at | completed_at
+Tasks:    id | title | status | created_at | completed_at | type | parent_id
 Sessions: id | task_id | planned_duration | actual_duration | started_at | ended_at | focus_score
 ```
 
@@ -58,3 +58,13 @@ PowerShell: `Get-Content -Raw Code.gs | node --check`. Kiểm tra diff bằng `g
 Các luồng cần kiểm tra: task, Pause/Resume, Skip/Stop, Short/Long Break, settings qua reload, chấm điểm qua reload, thống kê, mất mạng và gửi lại. Kiểm tra timer hết giờ khi tab bị ẩn và giao diện ở chiều rộng 360px. Khi kiểm tra đồng bộ, dùng Sheet thử riêng hoặc mô phỏng API để không tạo bản ghi thử trong Sheet thật.
 
 Khi c?p nh?t b?n h? tr? Undo/x?a task, ph?i deploy `Code.gs` m?i ?? endpoint nh?n action `reopenTask` v? status `deleted`. C?c thao t?c ch?a ???c server x?c nh?n v?n ???c gi? trong h?ng ??i local qua reload.
+
+## Group v? th?i gian task
+
+Trong Tasks, ch?n `Group` b?n c?nh ? t?o m?i ?? t?o cha. Nh?p task con trong ? `Add a task to this group`. Ch?m t?n task con ?? ch?n, chuy?n sang Focus r?i Start nh? v?i task th??ng. C? th? gi? c?c task ??c l?p b?n ngo?i group.
+
+M?i task hi?n th? t?ng th?i gian Focus ?? l?u, ch?nh x?c ??n gi?y. Group c?ng th?i gian c?a c?c con, g?m con ?? Done v? l?ch s? c?a con ?? x?a; kh?ng c?ng Pause ho?c Break. T?ng c?p nh?t sau khi Focus k?t th?c, Stop ho?c Skip. Group l? m?t c?p, kh?ng ch?y timer ri?ng n?n kh?ng c?ng tr?ng th?i gian.
+
+Code.gs m?i t? th?m `type` v? `parent_id` v?o cu?i b?ng Tasks n?m c?t c?. Task c? m?c ??nh `type=task`, `parent_id` tr?ng; group d?ng `type=group`; con d?ng ID cha trong `parent_id`. Sessions gi? nguy?n c?u tr?c v? li?n k?t v?i ID task con.
+
+C?n deploy Code.gs phi?n b?n m?i tr??c khi ??ng b? group. N?u endpoint c?n b?n c?, group v? c?c thao t?c li?n quan v?n ???c gi? local trong h?ng ??i, kh?ng g?i d? li?u thi?u c?u tr?c cha/con. X?a group c? x?c nh?n v? x?a c?c con kh?i danh s?ch, gi? to?n b? l?ch s? Focus.

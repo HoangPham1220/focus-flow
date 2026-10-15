@@ -1,4 +1,4 @@
-﻿(() => {
+(() => {
   'use strict';
   const $ = selector => document.querySelector(selector);
   const storeKey = 'tempo-data-v1'; // Keep existing installations and their data.
@@ -25,7 +25,7 @@
     catch (error) { console.warn('FocusFlow could not read local data.', error); }
     const settings = Object.fromEntries(Object.entries(defaults).map(([key, fallback]) =>
       [key, validNumber(saved.settings?.[key]) ? saved.settings[key] : fallback]));
-    const tasks = Array.isArray(saved.tasks) ? saved.tasks.filter(item => item && typeof item.id === 'string' && typeof item.title === 'string') : [];
+    const tasks = Array.isArray(saved.tasks) ? saved.tasks.filter(item => item && typeof item.id === 'string' && typeof item.title === 'string').map(item => ({ ...item, type: item.type || 'task', parent_id: item.parent_id || null })) : [];
     const sessions = Array.isArray(saved.sessions) ? saved.sessions.filter(item => item && typeof item.id === 'string') : [];
     const restored = saved.timer || {};
     const mode = restored.mode === 'break' ? 'shortBreak' : Object.hasOwn(modes, restored.mode) ? restored.mode : 'focus';
@@ -105,6 +105,7 @@
     try {
       const remote = await request(`${url}${url.includes('?') ? '&' : '?'}action=all`, { cache: 'no-store' });
       if (!Array.isArray(remote.tasks) || !Array.isArray(remote.sessions)) throw new Error('Invalid Sheets response');
+      if (remote.task_schema_version !== 2 && data.tasks.some(task => task.type === 'group' || task.parent_id)) throw new Error('Update and redeploy Code.gs to sync task groups. Local groups remain saved.');
       data.tasks = mergeRecords('tasks', remote.tasks);
       data.sessions = mergeRecords('sessions', remote.sessions);
       persist(); renderTasks(); renderStats();
@@ -133,28 +134,55 @@
     return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
   }
 
-  function selectedTask() { return data.tasks.find(task => task.id === data.selectedTaskId && task.status === 'open'); }
+  function selectedTask() { return data.tasks.find(task => task.id === data.selectedTaskId && task.status === 'open' && task.type !== 'group'); }
+
+  function focusTime(seconds) {
+    const value = Math.floor(Math.max(0, seconds));
+    const hours = Math.floor(value / 3600);
+    const minutes = Math.floor(value / 60) % 60;
+    const rest = value % 60;
+    return [hours ? `${hours}h` : '', minutes ? `${minutes}m` : '', rest ? `${rest}s` : ''].filter(Boolean).join(' ') || '0m';
+  }
 
   function renderTasks() {
-    $('#task-count').textContent = `${data.tasks.filter(task => task.status === 'open').length} open`;
+    const drafts = new Map([...$('#task-list').querySelectorAll('[data-parent]')].map(form => [form.dataset.parent, form.elements.childTitle.value]));
+    const visible = data.tasks.filter(task => task.status !== 'deleted' && !data.tasks.some(parent => parent.id === task.parent_id && parent.status === 'deleted'));
+    $('#task-count').textContent = `${visible.filter(task => task.type !== 'group' && task.status === 'open').length} open`;
     const current = timer.status !== 'idle' && timer.mode === 'focus' ? data.tasks.find(task => task.id === timer.taskId) : selectedTask();
-    $('#current-task-title').textContent = current?.title || 'Choose a task';
-    const visibleTasks = data.tasks.filter(task => task.status !== 'deleted');
-    $('#task-list').innerHTML = visibleTasks.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).map(task => {
+    const parent = current?.parent_id ? data.tasks.find(task => task.id === current.parent_id) : null;
+    $('#current-task-title').textContent = current ? `${parent ? parent.title + ' / ' : ''}${current.title}` : 'Choose a task';
+    const totals = new Map();
+    data.sessions.forEach(session => totals.set(session.task_id, (totals.get(session.task_id) || 0) + Math.max(0, Number(session.actual_duration) || 0)));
+    const sortTasks = tasks => [...tasks].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+    const taskRow = task => {
       const done = task.status === 'completed';
       const selected = !done && task.id === data.selectedTaskId;
       return `<div class="task-row ${done ? 'done' : ''} ${selected ? 'selected' : ''}">
         <button class="task-select" type="button" data-task="${escapeHtml(task.id)}" ${done ? 'disabled' : ''} aria-pressed="${selected}">
           <span class="task-check" aria-hidden="true">${done || selected ? '&#10003;' : ''}</span><span>${escapeHtml(task.title)}</span>
         </button>
+        <span class="task-time" data-time="${escapeHtml(task.id)}" title="Total logged focus time">${focusTime(totals.get(task.id) || 0)}</span>
         ${selected ? '<span class="selected-tag">Selected</span>' : done ? '<span class="selected-tag">Done</span>' : ''}
         <div class="task-actions">
           ${done ? `<button type="button" class="task-action" data-undo="${escapeHtml(task.id)}" aria-label="Mark ${escapeHtml(task.title)} as not completed">Undo</button>` : `<button type="button" class="complete-task" data-complete="${escapeHtml(task.id)}" aria-label="Complete ${escapeHtml(task.title)}">&#10003;</button>`}
           <button type="button" class="task-action task-delete" data-delete="${escapeHtml(task.id)}" aria-label="Delete ${escapeHtml(task.title)}">Delete</button>
         </div>
       </div>`;
+    };
+    const roots = visible.filter(task => !task.parent_id || !data.tasks.some(parent => parent.id === task.parent_id));
+    $('#task-list').innerHTML = sortTasks(roots).map(task => {
+      if (task.type !== 'group') return taskRow(task);
+      const allChildren = data.tasks.filter(child => child.parent_id === task.id);
+      const children = sortTasks(allChildren.filter(child => child.status !== 'deleted'));
+      const total = allChildren.reduce((seconds, child) => seconds + (totals.get(child.id) || 0), 0);
+      return `<section class="task-group" data-group="${escapeHtml(task.id)}" aria-label="${escapeHtml(task.title)}">
+        <header class="group-heading"><div><span class="task-kicker">GROUP</span><h2>${escapeHtml(task.title)}</h2><span class="group-time" data-group-time="${escapeHtml(task.id)}">${focusTime(total)} total focus</span>${allChildren.some(child => child.status === 'deleted' && totals.get(child.id)) ? '<small class="group-history-note">Includes focus from deleted tasks</small>' : ''}</div><button type="button" class="task-action task-delete" data-delete="${escapeHtml(task.id)}" aria-label="Delete group ${escapeHtml(task.title)}">Delete</button></header>
+        <div class="group-children">${children.map(taskRow).join('')}</div>
+        <form class="task-form child-task-form" data-parent="${escapeHtml(task.id)}"><input name="childTitle" maxlength="120" placeholder="Add a task to this group" aria-label="New task in ${escapeHtml(task.title)}" required><button type="submit" aria-label="Add child task">&#43;</button></form>
+      </section>`;
     }).join('');
-    $('#tasks-empty').classList.toggle('hidden', visibleTasks.length > 0);
+    $('#task-list').querySelectorAll('[data-parent]').forEach(form => { form.elements.childTitle.value = drafts.get(form.dataset.parent) || ''; });
+    $('#tasks-empty').classList.toggle('hidden', roots.length > 0);
   }
 
   function phaseDuration() { return timer.phaseDuration || data.settings[`${timer.mode}Duration`] * 60; }
@@ -283,13 +311,27 @@
     } catch {}
   }
 
+  function createTask(title, type = 'task', parentId = null) {
+    title = title.trim();
+    if (!title) return false;
+    if (parentId && !data.tasks.some(task => task.id === parentId && task.type === 'group' && task.status === 'open')) return false;
+    const task = { id: crypto.randomUUID(), title: title.slice(0, 120), status: 'open', created_at: new Date().toISOString(), completed_at: null, type, parent_id: parentId };
+    data.tasks.push(task);
+    if (type === 'task') data.selectedTaskId = task.id;
+    changed('tasks', task); renderTasks();
+    return true;
+  }
   $('#task-form').addEventListener('submit', event => {
     event.preventDefault();
-    const title = $('#task-input').value.trim();
-    if (!title) return;
-    const task = { id: crypto.randomUUID(), title: title.slice(0, 120), status: 'open', created_at: new Date().toISOString(), completed_at: null };
-    data.tasks.push(task); data.selectedTaskId = task.id;
-    changed('tasks', task); $('#task-input').value = ''; renderTasks();
+    if (createTask($('#task-input').value, $('#task-kind').value)) $('#task-input').value = '';
+  });
+  $('#task-list').addEventListener('submit', event => {
+    const form = event.target.closest('[data-parent]');
+    if (!form) return;
+    event.preventDefault();
+    const title = form.elements.childTitle.value;
+    form.elements.childTitle.value = '';
+    createTask(title, 'task', form.dataset.parent);
   });
   $('#task-list').addEventListener('click', event => {
     const select = event.target.closest('[data-task]');
@@ -314,11 +356,17 @@
     }
     if (remove) {
       const task = data.tasks.find(item => item.id === remove.dataset.delete);
-      if (!task || task.status === 'deleted' || !window.confirm('Delete this task? Focus history will be kept.')) return;
-      task.status = 'deleted'; task.completed_at = null;
-      delete data.pendingTaskActions[task.id];
-      if (data.selectedTaskId === task.id) data.selectedTaskId = null;
-      changed('tasks', task); renderTasks();
+      if (!task || task.status === 'deleted') return;
+      const message = task.type === 'group' ? 'Delete this group and its child tasks? Focus history will be kept.' : 'Delete this task? Focus history will be kept.';
+      if (!window.confirm(message)) return;
+      const targets = task.type === 'group' ? [task, ...data.tasks.filter(child => child.parent_id === task.id)] : [task];
+      targets.forEach(target => {
+        target.status = 'deleted'; target.completed_at = null;
+        delete data.pendingTaskActions[target.id];
+        if (data.selectedTaskId === target.id) data.selectedTaskId = null;
+        changed('tasks', target);
+      });
+      renderTasks();
     }
   });
   $('#task-picker').addEventListener('click', () => setScreen('tasks'));

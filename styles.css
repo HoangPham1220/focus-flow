@@ -698,3 +698,81 @@ body{
     justify-self: end;
   }
 }
+.task-form select {
+  width: 85px;
+  min-height: 52px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--panel);
+  color: var(--text);
+  font: 13px system-ui, sans-serif;
+}
+.task-group {
+  padding: 16px;
+  border: 1px solid #3a432e;
+  border-radius: 18px;
+  background: #151913;
+}
+.group-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.group-heading > div {
+  min-width: 0;
+}
+.group-heading h2 {
+  margin: 0 0 7px;
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+.group-time {
+  font-size: 12px;
+  color: var(--lime);
+  font-variant-numeric: tabular-nums;
+}
+.group-children {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.child-task-form {
+  margin: 12px 0 0;
+}
+.task-time {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 420px) {
+  #task-form {
+    flex-wrap: wrap;
+  }
+  #task-form > input {
+    flex-basis: 100%;
+  }
+  #task-form > select {
+    flex: 1;
+  }
+  .task-time {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .task-row .selected-tag {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .task-actions {
+    grid-row: 2 / 4;
+  }
+}
+.group-history-note {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--muted);
+}
