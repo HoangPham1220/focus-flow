@@ -56,3 +56,5 @@ node --check service-worker.js
 PowerShell: `Get-Content -Raw Code.gs | node --check`. Kiểm tra diff bằng `git diff --check`.
 
 Các luồng cần kiểm tra: task, Pause/Resume, Skip/Stop, Short/Long Break, settings qua reload, chấm điểm qua reload, thống kê, mất mạng và gửi lại. Kiểm tra timer hết giờ khi tab bị ẩn và giao diện ở chiều rộng 360px. Khi kiểm tra đồng bộ, dùng Sheet thử riêng hoặc mô phỏng API để không tạo bản ghi thử trong Sheet thật.
+
+Khi c?p nh?t b?n h? tr? Undo/x?a task, ph?i deploy `Code.gs` m?i ?? endpoint nh?n action `reopenTask` v? status `deleted`. C?c thao t?c ch?a ???c server x?c nh?n v?n ???c gi? trong h?ng ??i local qua reload.

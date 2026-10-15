@@ -652,3 +652,49 @@ body{
 .button-skip:hover{
   background:#303829
 }
+.task-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.task-action {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #22271f;
+  color: var(--lime);
+  font: 500 11px system-ui, sans-serif;
+  cursor: pointer;
+}
+.task-delete {
+  color: #f48b78;
+  background: transparent;
+}
+.task-action:hover {
+  background: #303829;
+}
+.task-select > span:last-child {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+@media (max-width: 420px) {
+  .task-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+  .task-select {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+  .task-row .selected-tag {
+    grid-column: 1;
+  }
+  .task-actions {
+    grid-column: 2;
+    justify-self: end;
+  }
+}

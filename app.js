@@ -44,6 +44,7 @@
     const pendingSync = saved.pendingSync || { tasks: tasks.map(item => item.id), sessions: sessions.map(item => item.id) };
     return { settings, tasks, sessions, timer, selectedTaskId: saved.selectedTaskId || null,
       pendingScoreId: saved.pendingScoreId || null,
+      pendingTaskActions: saved.pendingTaskActions || {},
       pendingSync: { tasks: Array.isArray(pendingSync.tasks) ? pendingSync.tasks : [], sessions: Array.isArray(pendingSync.sessions) ? pendingSync.sessions : [] } };
   }
 
@@ -83,7 +84,11 @@
         // Completing a task cannot rename it. Keep a repaired server title
         // instead of sending an old date serialization back to Sheets.
         if (type === 'tasks' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(local.title) && typeof record.title === 'string' && record.title !== local.title) local.title = record.title;
-        if (type === 'tasks' && record.status === 'completed') {
+        if (type === 'tasks' && record.status === 'deleted') {
+          local.status = 'deleted'; local.completed_at = null;
+          delete data.pendingTaskActions[record.id];
+        }
+        if (type === 'tasks' && record.status === 'completed' && local.status !== 'deleted' && data.pendingTaskActions[record.id] !== 'reopenTask') {
           local.status = 'completed'; local.completed_at = record.completed_at;
         }
         if (type === 'sessions' && local.focus_score == null && record.focus_score != null) local.focus_score = record.focus_score;
@@ -110,10 +115,14 @@
         const record = data[type].find(item => item.id === id);
         if (!record) { data.pendingSync[type].shift(); persist(); continue; }
         const snapshot = JSON.stringify(record);
-        const payload = type === 'tasks' ? { action: 'saveTask', task: record } : { action: 'saveSession', session: record };
+        const action = type === 'tasks' ? data.pendingTaskActions[id] || 'saveTask' : 'saveSession';
+        const payload = type === 'tasks' ? { action, task: record } : { action, session: record };
         const result = await request(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
         if (result.ok !== true) throw new Error('Sheets did not confirm the write');
-        if (JSON.stringify(data[type].find(item => item.id === id)) === snapshot) data.pendingSync[type].shift();
+        if (JSON.stringify(data[type].find(item => item.id === id)) === snapshot && (type !== 'tasks' || (data.pendingTaskActions[id] || 'saveTask') === action)) {
+          data.pendingSync[type].shift();
+          if (type === 'tasks') delete data.pendingTaskActions[id];
+        }
         persist();
       }
     } catch (error) { console.warn('FocusFlow sync failed. Pending records remain saved locally.', error); }
@@ -130,7 +139,8 @@
     $('#task-count').textContent = `${data.tasks.filter(task => task.status === 'open').length} open`;
     const current = timer.status !== 'idle' && timer.mode === 'focus' ? data.tasks.find(task => task.id === timer.taskId) : selectedTask();
     $('#current-task-title').textContent = current?.title || 'Choose a task';
-    $('#task-list').innerHTML = [...data.tasks].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).map(task => {
+    const visibleTasks = data.tasks.filter(task => task.status !== 'deleted');
+    $('#task-list').innerHTML = visibleTasks.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).map(task => {
       const done = task.status === 'completed';
       const selected = !done && task.id === data.selectedTaskId;
       return `<div class="task-row ${done ? 'done' : ''} ${selected ? 'selected' : ''}">
@@ -138,10 +148,13 @@
           <span class="task-check" aria-hidden="true">${done || selected ? '&#10003;' : ''}</span><span>${escapeHtml(task.title)}</span>
         </button>
         ${selected ? '<span class="selected-tag">Selected</span>' : done ? '<span class="selected-tag">Done</span>' : ''}
-        ${done ? '' : `<button type="button" class="complete-task" data-complete="${escapeHtml(task.id)}" aria-label="Complete ${escapeHtml(task.title)}">&#10003;</button>`}
+        <div class="task-actions">
+          ${done ? `<button type="button" class="task-action" data-undo="${escapeHtml(task.id)}" aria-label="Mark ${escapeHtml(task.title)} as not completed">Undo</button>` : `<button type="button" class="complete-task" data-complete="${escapeHtml(task.id)}" aria-label="Complete ${escapeHtml(task.title)}">&#10003;</button>`}
+          <button type="button" class="task-action task-delete" data-delete="${escapeHtml(task.id)}" aria-label="Delete ${escapeHtml(task.title)}">Delete</button>
+        </div>
       </div>`;
     }).join('');
-    $('#tasks-empty').classList.toggle('hidden', data.tasks.length > 0);
+    $('#tasks-empty').classList.toggle('hidden', visibleTasks.length > 0);
   }
 
   function phaseDuration() { return timer.phaseDuration || data.settings[`${timer.mode}Duration`] * 60; }
@@ -281,12 +294,30 @@
   $('#task-list').addEventListener('click', event => {
     const select = event.target.closest('[data-task]');
     const complete = event.target.closest('[data-complete]');
+    const undo = event.target.closest('[data-undo]');
+    const remove = event.target.closest('[data-delete]');
     if (select && !select.disabled) { data.selectedTaskId = select.dataset.task; persist(); renderTasks(); }
     if (complete) {
       const task = data.tasks.find(item => item.id === complete.dataset.complete);
-      if (!task || task.status === 'completed') return;
+      if (!task || task.status !== 'open') return;
       task.status = 'completed'; task.completed_at = new Date().toISOString();
+      delete data.pendingTaskActions[task.id];
       if (task.id === data.selectedTaskId) data.selectedTaskId = null;
+      changed('tasks', task); renderTasks();
+    }
+    if (undo) {
+      const task = data.tasks.find(item => item.id === undo.dataset.undo);
+      if (!task || task.status !== 'completed') return;
+      task.status = 'open'; task.completed_at = null;
+      data.pendingTaskActions[task.id] = 'reopenTask';
+      changed('tasks', task); renderTasks();
+    }
+    if (remove) {
+      const task = data.tasks.find(item => item.id === remove.dataset.delete);
+      if (!task || task.status === 'deleted' || !window.confirm('Delete this task? Focus history will be kept.')) return;
+      task.status = 'deleted'; task.completed_at = null;
+      delete data.pendingTaskActions[task.id];
+      if (data.selectedTaskId === task.id) data.selectedTaskId = null;
       changed('tasks', task); renderTasks();
     }
   });

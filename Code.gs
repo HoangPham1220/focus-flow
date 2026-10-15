@@ -29,12 +29,13 @@ function doPost(e) {
   const lock = LockService.getScriptLock();
   try {
     const body = JSON.parse(e.postData.contents);
-    if (!['saveTask', 'saveSession'].includes(body.action)) throw new Error('Unknown action');
-    const isTask = body.action === 'saveTask';
+    if (!['saveTask', 'reopenTask', 'saveSession'].includes(body.action)) throw new Error('Unknown action');
+    const isTask = body.action !== 'saveSession';
     const record = body[isTask ? 'task' : 'session'];
     validate_(record, isTask);
+    if (body.action === 'reopenTask' && record.status !== 'open') throw new Error('Reopened task must have open status');
     lock.waitLock(20000);
-    saveRow_(isTask ? 'Tasks' : 'Sessions', isTask ? TASK_HEADERS : SESSION_HEADERS, record);
+    saveRow_(isTask ? 'Tasks' : 'Sessions', isTask ? TASK_HEADERS : SESSION_HEADERS, record, body.action === 'reopenTask');
     return json_({ ok: true });
   } catch (error) { return json_({ error: error.message }); }
   finally { if (lock.hasLock()) lock.releaseLock(); }
@@ -44,7 +45,7 @@ function validate_(record, isTask) {
   if (!record || typeof record.id !== 'string' || !record.id.trim()) throw new Error('Missing record ID');
   if (isTask) {
     if (typeof record.title !== 'string' || !record.title.trim() || record.title.length > 120) throw new Error('Invalid task title');
-    if (!['open', 'completed'].includes(record.status)) throw new Error('Invalid task status');
+    if (!['open', 'completed', 'deleted'].includes(record.status)) throw new Error('Invalid task status');
     if (!Number.isFinite(Date.parse(record.created_at))) throw new Error('Invalid task creation time');
   } else {
     if (!Number.isFinite(record.planned_duration) || record.planned_duration <= 0) throw new Error('Invalid planned duration');
@@ -70,7 +71,7 @@ function readRows_(name, headers) {
     .map(row => Object.fromEntries(headers.map((key, index) => [key, row[index] === '' ? null : row[index]])));
 }
 
-function saveRow_(name, headers, record) {
+function saveRow_(name, headers, record, reopen = false) {
   const sheet = getSheet_(name, headers);
   const existing = sheet.getLastRow() > 1 ? sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues() : [];
   const index = existing.findIndex(row => row[0] === record.id);
@@ -78,10 +79,13 @@ function saveRow_(name, headers, record) {
     // An old client may send back the ISO title produced by getValues().
     record.title = sheet.getRange(index + 2, 2, 1, 1).getDisplayValues()[0][0];
   }
-  // A delayed request must not reopen a completed task or erase a saved score.
-  if (index >= 0 && name === 'Tasks' && existing[index][2] === 'completed') {
+  // Only an explicit Undo may reopen a task; deleted tasks stay deleted.
+  if (index >= 0 && name === 'Tasks' && existing[index][2] === 'deleted') {
+    record.status = 'deleted'; record.completed_at = null;
+  } else if (index >= 0 && name === 'Tasks' && existing[index][2] === 'completed' && record.status !== 'deleted' && !reopen) {
     record.status = 'completed'; record.completed_at = existing[index][4];
   }
+  if (name === 'Tasks' && record.status !== 'completed') record.completed_at = null;
   if (index >= 0 && name === 'Sessions' && record.focus_score == null && existing[index][6] !== '') record.focus_score = existing[index][6];
   const row = headers.map(key => {
     const value = record[key] == null ? '' : record[key];
