@@ -8,6 +8,7 @@
   <title>FocusFlow</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -17,7 +18,7 @@
       <span class="today-label" id="today-label"></span>
     </header>
 
-    <section class="screen active" id="screen-focus" aria-labelledby="focus-heading">
+    <section class="screen active" id="screen-focus" aria-label="Focus">
       <div class="focus-content">
         <div class="eyebrow"><span class="live-dot" id="live-dot"></span><span id="mode-label">FOCUS SESSION</span></div>
         <div class="timer-wrap" id="timer-wrap">
@@ -25,7 +26,7 @@
             <circle class="ring-track" cx="140" cy="140" r="130"></circle>
             <circle class="ring-progress" id="ring-progress" cx="140" cy="140" r="130"></circle>
           </svg>
-          <div class="timer-center"><span class="timer-time" id="timer-time">60:00</span><span class="timer-caption" id="timer-caption">READY WHEN YOU ARE</span></div>
+          <div class="timer-center"><span class="timer-time" id="timer-time" role="timer" aria-label="Remaining time">60:00</span><span class="timer-caption" id="timer-caption">READY WHEN YOU ARE</span></div>
         </div>
         <div class="current-task">
           <span class="task-kicker">CURRENT TASK</span>

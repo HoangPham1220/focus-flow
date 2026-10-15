@@ -1,27 +1,56 @@
-# FocusFlow
+﻿# FocusFlow
 
-A mobile-first focus timer built with plain HTML, CSS and JavaScript. It has Focus, Short Break and Long Break cycles, a simple task list, focus ratings, basic statistics, local storage, and an optional Google Sheets connection. Default cycle: 60-minute focus, 15-minute short break, 30-minute long break after 2 focus sessions. Change the durations and cycle length on the Settings screen.
+Ứng dụng HTML/CSS/JavaScript thuần, chạy trực tiếp trên GitHub Pages, không cần cài dependency hoặc build bundle.
 
-## Run locally
+## Chức năng
 
-From this folder, start any static web server, for example:
+- Focus, Short Break, Long Break; Start, Pause, Resume, Stop và Skip.
+- Settings mặc định: Focus 60 phút, Short Break 15 phút, Long Break 30 phút, nghỉ dài sau 2 Focus session. Chỉ nhận số nguyên dương. Thay đổi áp dụng từ block tiếp theo nếu timer đang chạy hoặc tạm dừng.
+- Tạo, chọn, hoàn thành task. Session giữ task được chọn lúc bắt đầu, kể cả khi sau đó đổi hoặc hoàn thành task.
+- Lưu session và điểm Focus 1–5. Stop/Skip Focus lưu phần thời gian thực tế đã tập, không tính thời gian Pause. Block kế tiếp chờ bấm Start.
+- Statistics: tổng Focus time hôm nay, số session hôm nay và tổng 7 ngày theo ngày kết thúc trên thiết bị.
+- Lưu local, đồng bộ Google Sheets khi được cấu hình, hỗ trợ PWA và offline.
+
+## Chạy local
 
 ```sh
 python -m http.server 8000
 ```
 
-Open <http://localhost:8000>. The app stores tasks and sessions in this browser's localStorage when Sheets is not configured. Use localhost or HTTPS for service worker and install support; opening `index.html` directly still lets the app run without PWA features.
+Mở <http://localhost:8000>. Dùng localhost hoặc HTTPS để bật service worker. Không cần npm. Source chính: `index.html`, `app.js`, `styles.css`; PWA: `service-worker.js`, `manifest.json`, các file icon.
 
-## Google Sheets setup
+## Google Sheets
 
-1. Create a Google spreadsheet and open **Extensions → Apps Script**.
-2. Copy `Code.gs` into the script editor. In `SPREADSHEET_ID`, paste the ID from the spreadsheet URL (the text between `/d/` and `/edit`), then save.
-3. Deploy it as a **Web app**. Set **Execute as** to yourself and access to **Anyone**. Authorize the requested spreadsheet access and copy the deployed web app URL.
-4. Paste the URL into `googleAppsScriptUrl` in `config.js`, publish the updated app, then reload FocusFlow.
-5. Apps Script creates the `Tasks` and `Sessions` sheets with headers. Existing local tasks and focus sessions are merged into Sheets; focus reports contain their task, planned/actual duration, start/end times, and score.
+1. Tạo spreadsheet, mở **Extensions → Apps Script**.
+2. Dán nội dung `Code.gs`. Điền `SPREADSHEET_ID` bằng đoạn ID giữa `/d/` và `/edit` trong URL spreadsheet, rồi lưu.
+3. **Deploy → New deployment → Web app**. Chọn **Execute as: Me**, **Who has access: Anyone**, cấp quyền và sao chép URL `/exec`.
+4. Điền URL vào `googleAppsScriptUrl` trong `config.js`, publish app, rồi tải lại.
+5. Mở `/exec?action=all` bằng cửa sổ ẩn danh để kiểm tra phản hồi JSON. Script tự tạo hai tab và hàng tiêu đề:
 
-The web app reads both sheets with `?action=all` and writes task/session records as they change. Browser localStorage remains enabled as an offline fallback. Deploy `Code.gs` as a web app again after changing the script. When replacing an existing deployment, edit that deployment to use the new version.
+```text
+Tasks:    id | title | status | created_at | completed_at
+Sessions: id | task_id | planned_duration | actual_duration | started_at | ended_at | focus_score
+```
 
-## PWA
+Duration lưu bằng giây; timestamp lưu dạng ISO. Giữ nguyên thứ tự các cột. Khi cập nhật script, dùng **Deploy → Manage deployments → Edit → New version → Deploy** để giữ URL hiện tại. Đừng thay Spreadsheet ID đã cấu hình bằng placeholder trong source.
 
-Serve over HTTPS (or localhost) to enable the service worker and browser install prompt. `manifest.json` and `icon.svg` are included; the SVG is a simple placeholder app icon.
+App đọc Sheets khi mở lại, gửi các bản ghi local chưa được xác nhận và đồng bộ khi task/session thay đổi. Ghi tuần tự, cập nhật theo ID để tránh tạo trùng; bản ghi lỗi được giữ trong localStorage và thử lại khi có mạng, tải lại app hoặc có thay đổi tiếp theo. Settings và trạng thái timer chỉ lưu trên thiết bị. Không có đồng bộ trực tiếp giữa các thiết bị đang mở app.
+
+URL endpoint trong app công khai có thể được người khác sử dụng để đọc/ghi dữ liệu qua script. Sheet không nên chứa dữ liệu nhạy cảm.
+
+## PWA và dữ liệu cũ
+
+Manifest có icon PNG 192/512 và SVG. Trên điện thoại dùng Add to Home Screen. Service worker ưu tiên file mới từ mạng, dùng cache khi offline; chỉ cache tài nguyên app, không cache API Sheets. Khi có cập nhật, đóng/mở lại hoặc tải lại app.
+
+Bản viết lại giữ storage key `tempo-data-v1` để bảo toàn task, session, settings và timer cũ. Timer đang chạy được khôi phục bằng timestamp. Nếu mở lại sau khi hết giờ, chỉ ghi một session với thời lượng tối đa bằng thời lượng dự kiến. Âm thanh/thông báo tùy khả năng trình duyệt; khi app bị hệ điều hành đóng, thông báo không được đảm bảo.
+
+## Kiểm tra thay đổi
+
+```sh
+node --check app.js
+node --check service-worker.js
+```
+
+PowerShell: `Get-Content -Raw Code.gs | node --check`. Kiểm tra diff bằng `git diff --check`.
+
+Các luồng cần kiểm tra: task, Pause/Resume, Skip/Stop, Short/Long Break, settings qua reload, chấm điểm qua reload, thống kê, mất mạng và gửi lại. Kiểm tra timer hết giờ khi tab bị ẩn và giao diện ở chiều rộng 360px. Khi kiểm tra đồng bộ, dùng Sheet thử riêng hoặc mô phỏng API để không tạo bản ghi thử trong Sheet thật.
