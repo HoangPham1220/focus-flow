@@ -32,7 +32,9 @@
   async function syncRequest(payload) {
     const url = apiUrl(); if (!url) return;
     try {
-      await fetch(url, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+      const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+      const result = await response.json();
+      if (!response.ok || result.ok !== true) throw new Error(result.error || `Sheets returned ${response.status}`);
     } catch (error) { console.warn('FocusFlow Sheets sync failed; data remains saved locally.', error); }
   }
   function upsertTask(task) { syncRequest({ action: 'saveTask', task }); }
