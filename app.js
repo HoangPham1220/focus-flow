@@ -76,6 +76,7 @@
     $('#start-button').classList.toggle('hidden', running || paused);
     $('#pause-button').classList.toggle('hidden', !running);
     $('#resume-button').classList.toggle('hidden', !paused);
+    $('#skip-button').classList.toggle('hidden', !(running || paused));
     $('#stop-button').classList.toggle('hidden', !(running || paused));
     renderTasks();
   }
@@ -124,8 +125,8 @@
     timer.status = 'idle'; timer.remaining = timerDuration(timer.mode); timer.phaseDuration = timer.remaining; timer.startedAt = null; timer.phaseStartedAt = null; timer.focusElapsed = 0; timer.plannedDuration = null;
     persist(); renderTimer(); renderStats();
   }
-  function finishBreak() {
-    notifyEnd(timer.mode);
+  function finishBreak(notify = true) {
+    if (notify) notifyEnd(timer.mode);
     if (timer.mode === 'longBreak') timer.focusesInCycle = 0;
     timer.mode = 'focus'; timer.status = 'idle'; timer.remaining = timerDuration('focus'); timer.phaseDuration = timer.remaining; timer.startedAt = null; timer.phaseStartedAt = null; timer.focusElapsed = 0; timer.plannedDuration = null;
     persist(); renderTimer();
@@ -160,6 +161,12 @@
   $('#start-button').addEventListener('click', startTimer);
   $('#resume-button').addEventListener('click', startTimer);
   $('#pause-button').addEventListener('click', () => { tick(); if (timer.status !== 'running') return; if (timer.mode === 'focus') timer.focusElapsed += Math.max(0, (Date.now() - new Date(timer.phaseStartedAt).getTime()) / 1000); timer.status = 'paused'; timer.phaseStartedAt = null; persist(); renderTimer(); });
+  $('#skip-button').addEventListener('click', () => {
+    if (timer.status === 'running') tick();
+    if (timer.status !== 'running' && timer.status !== 'paused') return;
+    if (timer.mode === 'focus') finishFocus();
+    else finishBreak(false);
+  });
   $('#stop-button').addEventListener('click', () => {
     if (timer.mode === 'focus' && timer.startedAt) { const ended = new Date().toISOString(); finishFocus(ended); notifyEnd('focus'); }
     else { timer.status = 'idle'; timer.mode = 'focus'; timer.remaining = timerDuration('focus'); timer.phaseDuration = timer.remaining; timer.startedAt = null; timer.phaseStartedAt = null; timer.focusElapsed = 0; timer.plannedDuration = null; persist(); renderTimer(); }
