@@ -44,7 +44,15 @@ function validate_(record, isTask) {
 function readRows_(name, headers) {
   const sheet = getSheet_(name, headers);
   if (sheet.getLastRow() < 2) return [];
-  return sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues()
+  const range = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length);
+  const values = range.getValues();
+  // Sheets may have inferred a title such as 15-10 as a Date or a number.
+  // Return its visible text, while keeping session durations numeric.
+  if (name === 'Tasks') {
+    const titles = sheet.getRange(2, 2, values.length, 1).getDisplayValues();
+    values.forEach((row, index) => { row[1] = titles[index][0]; });
+  }
+  return values
     .filter(row => row[0] !== '')
     .map(row => Object.fromEntries(headers.map((key, index) => [key, row[index] === '' ? null : row[index]])));
 }
@@ -53,6 +61,10 @@ function saveRow_(name, headers, record) {
   const sheet = getSheet_(name, headers);
   const existing = sheet.getLastRow() > 1 ? sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues() : [];
   const index = existing.findIndex(row => row[0] === record.id);
+  if (index >= 0 && name === 'Tasks' && Object.prototype.toString.call(existing[index][1]) === '[object Date]' && record.title === existing[index][1].toISOString()) {
+    // An old client may send back the ISO title produced by getValues().
+    record.title = sheet.getRange(index + 2, 2, 1, 1).getDisplayValues()[0][0];
+  }
   // A delayed request must not reopen a completed task or erase a saved score.
   if (index >= 0 && name === 'Tasks' && existing[index][2] === 'completed') {
     record.status = 'completed'; record.completed_at = existing[index][4];
@@ -62,8 +74,11 @@ function saveRow_(name, headers, record) {
     const value = record[key] == null ? '' : record[key];
     return typeof value === 'string' && value.startsWith('=') ? "'" + value : value;
   });
-  if (index < 0) sheet.appendRow(row);
-  else sheet.getRange(index + 2, 1, 1, headers.length).setValues([row]);
+  const targetRow = index < 0 ? sheet.getLastRow() + 1 : index + 2;
+  if (targetRow > sheet.getMaxRows()) sheet.insertRowsAfter(sheet.getMaxRows(), 1);
+  // Apply text format BEFORE writing so date-like titles remain exact strings.
+  if (name === 'Tasks') sheet.getRange(targetRow, 2, 1, 1).setNumberFormat('@');
+  sheet.getRange(targetRow, 1, 1, headers.length).setValues([row]);
 }
 
 function getSheet_(name, headers) {

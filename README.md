@@ -34,6 +34,8 @@ Sessions: id | task_id | planned_duration | actual_duration | started_at | ended
 
 Duration lưu bằng giây; timestamp lưu dạng ISO. Giữ nguyên thứ tự các cột. Khi cập nhật script, dùng **Deploy → Manage deployments → Edit → New version → Deploy** để giữ URL hiện tại. Đừng thay Spreadsheet ID đã cấu hình bằng placeholder trong source.
 
+Tên task được ghi dưới dạng văn bản để Sheets không tự đổi `15-10` thành ngày. Với ô cũ đã bị đổi kiểu, API đọc theo chữ đang hiển thị trong cột `title`, không trả timestamp ngày. Nếu tên đã bị ghi thành chuỗi ISO ngay trong Sheet, cần nhập lại tên đúng vào ô đó; script không tự đoán tên gốc.
+
 App đọc Sheets khi mở lại, gửi các bản ghi local chưa được xác nhận và đồng bộ khi task/session thay đổi. Ghi tuần tự, cập nhật theo ID để tránh tạo trùng; bản ghi lỗi được giữ trong localStorage và thử lại khi có mạng, tải lại app hoặc có thay đổi tiếp theo. Settings và trạng thái timer chỉ lưu trên thiết bị. Không có đồng bộ trực tiếp giữa các thiết bị đang mở app.
 
 URL endpoint trong app công khai có thể được người khác sử dụng để đọc/ghi dữ liệu qua script. Sheet không nên chứa dữ liệu nhạy cảm.
