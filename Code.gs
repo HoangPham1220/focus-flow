@@ -1,5 +1,7 @@
 const TASK_HEADERS = ['id', 'title', 'status', 'created_at', 'completed_at'];
 const SESSION_HEADERS = ['id', 'task_id', 'planned_duration', 'actual_duration', 'started_at', 'ended_at', 'focus_score'];
+// Paste the spreadsheet ID from its URL between /d/ and /edit.
+const SPREADSHEET_ID = 'PASTE_SPREADSHEET_ID_HERE';
 
 function doGet(e) {
   const action = e.parameter.action || 'all';
@@ -32,7 +34,8 @@ function saveRow_(name, headers, record) {
 }
 
 function getSheet_(name, headers) {
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  if (SPREADSHEET_ID === 'PASTE_SPREADSHEET_ID_HERE') throw new Error('Set SPREADSHEET_ID in Code.gs first.');
+  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
   let sheet = spreadsheet.getSheetByName(name);
   if (!sheet) sheet = spreadsheet.insertSheet(name);
   if (sheet.getLastRow() === 0) sheet.appendRow(headers);

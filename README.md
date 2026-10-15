@@ -15,12 +15,12 @@ Open <http://localhost:8000>. The app stores tasks and sessions in this browser'
 ## Google Sheets setup
 
 1. Create a Google spreadsheet and open **Extensions → Apps Script**.
-2. Copy `Code.gs` into the script editor and save.
+2. Copy `Code.gs` into the script editor. In `SPREADSHEET_ID`, paste the ID from the spreadsheet URL (the text between `/d/` and `/edit`), then save.
 3. Deploy it as a **Web app**. Set **Execute as** to yourself and access to **Anyone**. Authorize the requested spreadsheet access and copy the deployed web app URL.
-4. Paste the URL into `googleAppsScriptUrl` in `config.js`.
-5. Reload FocusFlow. Apps Script creates the `Tasks` and `Sessions` sheets with headers as data is read or written.
+4. Paste the URL into `googleAppsScriptUrl` in `config.js`, publish the updated app, then reload FocusFlow.
+5. Apps Script creates the `Tasks` and `Sessions` sheets with headers. Existing local tasks and focus sessions are merged into Sheets; focus reports contain their task, planned/actual duration, start/end times, and score.
 
-The web app reads both sheets with `?action=all` and writes task/session records as they change. Browser localStorage remains enabled as an offline fallback. Deploy `Code.gs` as a web app again after changing the script.
+The web app reads both sheets with `?action=all` and writes task/session records as they change. Browser localStorage remains enabled as an offline fallback. Deploy `Code.gs` as a web app again after changing the script. When replacing an existing deployment, edit that deployment to use the new version.
 
 ## PWA
 

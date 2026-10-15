@@ -37,6 +37,11 @@
   }
   function upsertTask(task) { syncRequest({ action: 'saveTask', task }); }
   function upsertSession(session) { syncRequest({ action: 'saveSession', session }); }
+  function mergeById(local, remote) {
+    const merged = new Map(remote.map(item => [item.id, item]));
+    local.forEach(item => merged.set(item.id, { ...merged.get(item.id), ...item }));
+    return [...merged.values()];
+  }
   function esc(value) { return value.replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char])); }
   function selectedTask() { return data.tasks.find(task => task.id === data.selectedTaskId && task.status === 'open'); }
   function renderTasks() {
@@ -184,13 +189,17 @@
   $('#stats-date').textContent = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' });
   renderSettings(); renderTimer(); renderStats(); persist();
   setInterval(tick, 1000);
-  if (apiUrl()) fetch(`${apiUrl()}?action=all`).then(response => response.json()).then(remote => {
-    if (Array.isArray(remote.tasks) && Array.isArray(remote.sessions)) {
-      data.tasks = remote.tasks; data.sessions = remote.sessions;
-      if (!selectedTask()) data.selectedTaskId = null;
-      persist(); renderTasks(); renderStats();
-    }
-  }).catch(error => console.warn('FocusFlow could not load Google Sheets; using local data.', error));
+  if (apiUrl()) fetch(`${apiUrl()}?action=all`).then(response => {
+    if (!response.ok) throw new Error(`Sheets returned ${response.status}`);
+    return response.json();
+  }).then(remote => {
+    if (!Array.isArray(remote.tasks) || !Array.isArray(remote.sessions)) throw new Error('Invalid Google Sheets response');
+    data.tasks = mergeById(data.tasks, remote.tasks);
+    data.sessions = mergeById(data.sessions, remote.sessions);
+    if (!selectedTask()) data.selectedTaskId = null;
+    persist(); renderTasks(); renderStats();
+    return Promise.all([...data.tasks.map(task => syncRequest({ action: 'saveTask', task })), ...data.sessions.map(session => syncRequest({ action: 'saveSession', session }))]);
+  }).catch(error => console.warn('FocusFlow could not sync Google Sheets; local data is preserved.', error));
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('./service-worker.js').catch(() => {});
 })();
 
