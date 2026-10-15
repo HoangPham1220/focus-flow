@@ -81,6 +81,16 @@
   </main>
 
   <dialog id="score-dialog" class="score-dialog"><form method="dialog" class="score-card"><span class="score-spark">✳</span><p class="eyebrow">SESSION COMPLETE</p><h2>Focus của session này thế nào?</h2><p class="score-subtitle">Take a moment to reflect.</p><div class="score-options" id="score-options"><button type="button" data-score="1">1</button><button type="button" data-score="2">2</button><button type="button" data-score="3">3</button><button type="button" data-score="4">4</button><button type="button" data-score="5">5</button></div><button class="skip-score" id="skip-score" type="button">Not now</button></form></dialog>
+  <dialog id="move-dialog" class="score-dialog" aria-labelledby="move-heading">
+    <form id="move-form" class="score-card">
+      <h2 id="move-heading">Move into group</h2>
+      <p id="move-task-title" class="score-subtitle"></p>
+      <label for="move-group" class="task-kicker">DESTINATION GROUP</label>
+      <select id="move-group" required aria-label="Destination group"></select>
+      <p class="score-subtitle">All logged focus time moves with this task.</p>
+      <div class="move-actions"><button type="button" id="move-cancel" class="button button-secondary">Cancel</button><button type="submit" class="button button-primary">Move</button></div>
+    </form>
+  </dialog>
   <script src="config.js"></script>
   <script src="app.js"></script>
 </body>

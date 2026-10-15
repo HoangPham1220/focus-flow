@@ -9,6 +9,7 @@
   let timer = data.timer;
   let syncing = false;
   let audio;
+  let movingTaskId = null;
 
   function validNumber(value) {
     return Number.isSafeInteger(value) && value > 0 && value <= Math.floor(Number.MAX_SAFE_INTEGER / 60000);
@@ -45,6 +46,7 @@
     return { settings, tasks, sessions, timer, selectedTaskId: saved.selectedTaskId || null,
       pendingScoreId: saved.pendingScoreId || null,
       pendingTaskActions: saved.pendingTaskActions || {},
+      pendingTaskMoves: saved.pendingTaskMoves || {},
       pendingSync: { tasks: Array.isArray(pendingSync.tasks) ? pendingSync.tasks : [], sessions: Array.isArray(pendingSync.sessions) ? pendingSync.sessions : [] } };
   }
 
@@ -87,6 +89,7 @@
         if (type === 'tasks' && record.status === 'deleted') {
           local.status = 'deleted'; local.completed_at = null;
           delete data.pendingTaskActions[record.id];
+          delete data.pendingTaskMoves[record.id];
         }
         if (type === 'tasks' && record.status === 'completed' && local.status !== 'deleted' && data.pendingTaskActions[record.id] !== 'reopenTask') {
           local.status = 'completed'; local.completed_at = record.completed_at;
@@ -106,23 +109,31 @@
       const remote = await request(`${url}${url.includes('?') ? '&' : '?'}action=all`, { cache: 'no-store' });
       if (!Array.isArray(remote.tasks) || !Array.isArray(remote.sessions)) throw new Error('Invalid Sheets response');
       if (remote.task_schema_version !== 2 && data.tasks.some(task => task.type === 'group' || task.parent_id)) throw new Error('Update and redeploy Code.gs to sync task groups. Local groups remain saved.');
+      if (remote.task_moves_supported !== true && Object.keys(data.pendingTaskMoves).length) throw new Error('Update and redeploy Code.gs to move existing tasks. Pending moves remain saved locally.');
       data.tasks = mergeRecords('tasks', remote.tasks);
       data.sessions = mergeRecords('sessions', remote.sessions);
       persist(); renderTasks(); renderStats();
       // Serialize writes so an earlier unscored session cannot overwrite its rating.
       while (data.pendingSync.tasks.length || data.pendingSync.sessions.length) {
         const type = data.pendingSync.tasks.length ? 'tasks' : 'sessions';
-        const id = data.pendingSync[type][0];
+        let id = data.pendingSync[type][0];
+        if (type === 'tasks') {
+          const candidate = data.tasks.find(item => item.id === id);
+          const parentId = data.pendingTaskMoves[id] || candidate?.parent_id;
+          if (parentId && data.pendingSync.tasks.includes(parentId)) id = parentId;
+        }
         const record = data[type].find(item => item.id === id);
-        if (!record) { data.pendingSync[type].shift(); persist(); continue; }
+        if (!record) { data.pendingSync[type].splice(data.pendingSync[type].indexOf(id), 1); persist(); continue; }
         const snapshot = JSON.stringify(record);
         const action = type === 'tasks' ? data.pendingTaskActions[id] || 'saveTask' : 'saveSession';
         const payload = type === 'tasks' ? { action, task: record } : { action, session: record };
+        const moveTo = type === 'tasks' ? data.pendingTaskMoves[id] : undefined;
+        if (moveTo !== undefined) payload.move_to = moveTo;
         const result = await request(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
         if (result.ok !== true) throw new Error('Sheets did not confirm the write');
-        if (JSON.stringify(data[type].find(item => item.id === id)) === snapshot && (type !== 'tasks' || (data.pendingTaskActions[id] || 'saveTask') === action)) {
-          data.pendingSync[type].shift();
-          if (type === 'tasks') delete data.pendingTaskActions[id];
+        if (JSON.stringify(data[type].find(item => item.id === id)) === snapshot && (type !== 'tasks' || ((data.pendingTaskActions[id] || 'saveTask') === action && data.pendingTaskMoves[id] === moveTo))) {
+          data.pendingSync[type].splice(data.pendingSync[type].indexOf(id), 1);
+          if (type === 'tasks') { delete data.pendingTaskActions[id]; delete data.pendingTaskMoves[id]; }
         }
         persist();
       }
@@ -147,6 +158,7 @@
   function renderTasks() {
     const drafts = new Map([...$('#task-list').querySelectorAll('[data-parent]')].map(form => [form.dataset.parent, form.elements.childTitle.value]));
     const visible = data.tasks.filter(task => task.status !== 'deleted' && !data.tasks.some(parent => parent.id === task.parent_id && parent.status === 'deleted'));
+    const groups = visible.filter(task => task.type === 'group' && task.status === 'open');
     $('#task-count').textContent = `${visible.filter(task => task.type !== 'group' && task.status === 'open').length} open`;
     const current = timer.status !== 'idle' && timer.mode === 'focus' ? data.tasks.find(task => task.id === timer.taskId) : selectedTask();
     const parent = current?.parent_id ? data.tasks.find(task => task.id === current.parent_id) : null;
@@ -164,6 +176,7 @@
         <span class="task-time" data-time="${escapeHtml(task.id)}" title="Total logged focus time">${focusTime(totals.get(task.id) || 0)}</span>
         ${selected ? '<span class="selected-tag">Selected</span>' : done ? '<span class="selected-tag">Done</span>' : ''}
         <div class="task-actions">
+          ${groups.some(group => group.id !== task.parent_id) ? `<button type="button" class="task-action" data-move="${escapeHtml(task.id)}" aria-label="Move ${escapeHtml(task.title)} into a group">Move</button>` : ''}
           ${done ? `<button type="button" class="task-action" data-undo="${escapeHtml(task.id)}" aria-label="Mark ${escapeHtml(task.title)} as not completed">Undo</button>` : `<button type="button" class="complete-task" data-complete="${escapeHtml(task.id)}" aria-label="Complete ${escapeHtml(task.title)}">&#10003;</button>`}
           <button type="button" class="task-action task-delete" data-delete="${escapeHtml(task.id)}" aria-label="Delete ${escapeHtml(task.title)}">Delete</button>
         </div>
@@ -338,6 +351,17 @@
     const complete = event.target.closest('[data-complete]');
     const undo = event.target.closest('[data-undo]');
     const remove = event.target.closest('[data-delete]');
+    const move = event.target.closest('[data-move]');
+    if (move) {
+      const task = data.tasks.find(item => item.id === move.dataset.move && item.status !== 'deleted' && item.type !== 'group');
+      if (!task) return;
+      const targets = data.tasks.filter(group => group.type === 'group' && group.status === 'open' && group.id !== task.parent_id);
+      if (!targets.length) return;
+      movingTaskId = task.id;
+      $('#move-task-title').textContent = task.title;
+      $('#move-group').innerHTML = '<option value="">Choose a group</option>' + targets.map(group => `<option value="${escapeHtml(group.id)}">${escapeHtml(group.title)}</option>`).join('');
+      $('#move-dialog').showModal();
+    }
     if (select && !select.disabled) { data.selectedTaskId = select.dataset.task; persist(); renderTasks(); }
     if (complete) {
       const task = data.tasks.find(item => item.id === complete.dataset.complete);
@@ -369,6 +393,18 @@
       renderTasks();
     }
   });
+  $('#move-form').addEventListener('submit', event => {
+    event.preventDefault();
+    const task = data.tasks.find(item => item.id === movingTaskId && item.type !== 'group' && item.status !== 'deleted');
+    const group = data.tasks.find(item => item.id === $('#move-group').value && item.type === 'group' && item.status === 'open');
+    if (!task || !group || group.id === task.parent_id) return;
+    task.parent_id = group.id;
+    data.pendingTaskMoves[task.id] = group.id;
+    changed('tasks', task); renderTasks();
+    movingTaskId = null; $('#move-dialog').close();
+  });
+  $('#move-cancel').addEventListener('click', () => { movingTaskId = null; $('#move-dialog').close(); });
+  $('#move-dialog').addEventListener('cancel', () => { movingTaskId = null; });
   $('#task-picker').addEventListener('click', () => setScreen('tasks'));
   $('.brand').addEventListener('click', event => { event.preventDefault(); setScreen('focus'); });
   $('#start-button').addEventListener('click', startTimer);

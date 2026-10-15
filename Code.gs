@@ -20,7 +20,7 @@ function doGet(e) {
   try {
     if (e && e.parameter.action && e.parameter.action !== 'all') throw new Error('Unknown action');
     lock.waitLock(20000);
-    return json_({ task_schema_version: 2, tasks: readRows_('Tasks', TASK_HEADERS), sessions: readRows_('Sessions', SESSION_HEADERS) });
+    return json_({ task_schema_version: 2, task_moves_supported: true, tasks: readRows_('Tasks', TASK_HEADERS), sessions: readRows_('Sessions', SESSION_HEADERS) });
   } catch (error) { return json_({ error: error.message }); }
   finally { if (lock.hasLock()) lock.releaseLock(); }
 }
@@ -34,8 +34,9 @@ function doPost(e) {
     const record = body[isTask ? 'task' : 'session'];
     validate_(record, isTask);
     if (body.action === 'reopenTask' && record.status !== 'open') throw new Error('Reopened task must have open status');
+    if (body.move_to !== undefined && (!isTask || typeof body.move_to !== 'string' || !body.move_to)) throw new Error('Invalid destination group');
     lock.waitLock(20000);
-    saveRow_(isTask ? 'Tasks' : 'Sessions', isTask ? TASK_HEADERS : SESSION_HEADERS, record, body.action === 'reopenTask');
+    saveRow_(isTask ? 'Tasks' : 'Sessions', isTask ? TASK_HEADERS : SESSION_HEADERS, record, body.action === 'reopenTask', body.move_to);
     return json_({ ok: true });
   } catch (error) { return json_({ error: error.message }); }
   finally { if (lock.hasLock()) lock.releaseLock(); }
@@ -74,7 +75,7 @@ function readRows_(name, headers) {
     .map(row => Object.fromEntries(headers.map((key, index) => [key, row[index] === '' ? null : row[index]])));
 }
 
-function saveRow_(name, headers, record, reopen = false) {
+function saveRow_(name, headers, record, reopen = false, moveTo) {
   const sheet = getSheet_(name, headers);
   const existing = sheet.getLastRow() > 1 ? sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues() : [];
   const index = existing.findIndex(row => row[0] === record.id);
@@ -84,7 +85,13 @@ function saveRow_(name, headers, record, reopen = false) {
     record.type = record.type || storedType || 'task';
     record.parent_id = record.parent_id || storedParent || null;
     if (record.type === 'group' && record.status !== 'deleted') record.status = 'open';
-    if (index >= 0 && (record.type !== storedType || record.parent_id !== storedParent)) throw new Error('Task type and parent cannot be changed');
+    if (index >= 0 && record.type !== storedType) throw new Error('Task type cannot be changed');
+    if (moveTo !== undefined) {
+      if (record.type !== 'task' || (index >= 0 && existing[index][2] === 'deleted' && (record.status !== 'deleted' || moveTo !== storedParent))) throw new Error('Deleted tasks and groups cannot be moved');
+      const target = existing.find(row => row[0] === moveTo && row[5] === 'group' && (row[2] === 'open' || record.status === 'deleted'));
+      if (!target) throw new Error('Destination group not found or deleted');
+      record.parent_id = moveTo;
+    } else if (index >= 0) record.parent_id = storedParent;
     if (record.type === 'group' && record.parent_id) throw new Error('Groups cannot have a parent');
     if (record.parent_id) {
       const parent = existing.find(row => row[0] === record.parent_id);

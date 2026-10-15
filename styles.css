@@ -680,7 +680,7 @@ body{
   overflow-wrap: anywhere;
   min-width: 0;
 }
-@media (max-width: 420px) {
+@media (max-width: 600px) {
   .task-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -748,7 +748,7 @@ body{
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-@media (max-width: 420px) {
+@media (max-width: 600px) {
   #task-form {
     flex-wrap: wrap;
   }
@@ -775,4 +775,30 @@ body{
   margin-top: 6px;
   font-size: 10px;
   color: var(--muted);
+}
+#move-group {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  margin: 12px 0;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--text);
+  font: 14px system-ui, sans-serif;
+}
+#move-task-title {
+  overflow-wrap: anywhere;
+  margin-bottom: 20px;
+}
+.move-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 22px;
+}
+.move-actions > button {
+  flex: 1;
+  justify-content: center;
+  width: auto;
 }
