@@ -80,6 +80,9 @@
       if (!record || typeof record.id !== 'string') return;
       const local = merged.get(record.id);
       if (local && dirty.has(record.id)) {
+        // Completing a task cannot rename it. Keep a repaired server title
+        // instead of sending an old date serialization back to Sheets.
+        if (type === 'tasks' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(local.title) && typeof record.title === 'string' && record.title !== local.title) local.title = record.title;
         if (type === 'tasks' && record.status === 'completed') {
           local.status = 'completed'; local.completed_at = record.completed_at;
         }

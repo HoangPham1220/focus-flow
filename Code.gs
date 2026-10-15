@@ -2,6 +2,19 @@
 const TASK_HEADERS = ['id', 'title', 'status', 'created_at', 'completed_at'];
 const SESSION_HEADERS = ['id', 'task_id', 'planned_duration', 'actual_duration', 'started_at', 'ended_at', 'focus_score'];
 
+// Run once from the Apps Script editor opened through Sheets > Extensions.
+// Script Properties survive code replacement and web app redeployment.
+function setupSpreadsheet() {
+  const properties = PropertiesService.getScriptProperties();
+  const configuredId = properties.getProperty('SPREADSHEET_ID') || (SPREADSHEET_ID !== 'PASTE_SPREADSHEET_ID_HERE' ? SPREADSHEET_ID : '');
+  const spreadsheet = configuredId ? SpreadsheetApp.openById(configuredId) : SpreadsheetApp.getActiveSpreadsheet();
+  if (!spreadsheet) throw new Error('Open this script from your Sheet via Extensions > Apps Script, or set SPREADSHEET_ID in Project Settings > Script properties.');
+  properties.setProperty('SPREADSHEET_ID', spreadsheet.getId());
+  getSheet_('Tasks', TASK_HEADERS);
+  getSheet_('Sessions', SESSION_HEADERS);
+  return 'Spreadsheet connection saved.';
+}
+
 function doGet(e) {
   const lock = LockService.getScriptLock();
   try {
@@ -82,8 +95,11 @@ function saveRow_(name, headers, record) {
 }
 
 function getSheet_(name, headers) {
-  if (!SPREADSHEET_ID || SPREADSHEET_ID === 'PASTE_SPREADSHEET_ID_HERE') throw new Error('Set SPREADSHEET_ID in Code.gs first.');
-  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const properties = PropertiesService.getScriptProperties();
+  const id = properties.getProperty('SPREADSHEET_ID') || (SPREADSHEET_ID !== 'PASTE_SPREADSHEET_ID_HERE' ? SPREADSHEET_ID : '');
+  if (!id) throw new Error('Run setupSpreadsheet once in the Apps Script editor, then deploy a new version.');
+  const spreadsheet = SpreadsheetApp.openById(id);
+  if (!properties.getProperty('SPREADSHEET_ID')) properties.setProperty('SPREADSHEET_ID', id);
   const sheet = spreadsheet.getSheetByName(name) || spreadsheet.insertSheet(name);
   if (sheet.getLastRow() === 0) sheet.appendRow(headers);
   const actual = sheet.getRange(1, 1, 1, headers.length).getValues()[0];

@@ -1,4 +1,4 @@
-﻿# FocusFlow
+# FocusFlow
 
 Ứng dụng HTML/CSS/JavaScript thuần, chạy trực tiếp trên GitHub Pages, không cần cài dependency hoặc build bundle.
 
