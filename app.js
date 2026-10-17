@@ -409,6 +409,14 @@
   $('.brand').addEventListener('click', event => { event.preventDefault(); setScreen('focus'); });
   $('#start-button').addEventListener('click', startTimer);
   $('#resume-button').addEventListener('click', startTimer);
+  $('#new-cycle-button').addEventListener('click', () => {
+    if (timer.status !== 'idle' && !window.confirm('Dừng block hiện tại và bắt đầu chu kỳ mới? Thời gian Focus đã tập vẫn được tính.')) return;
+    tick();
+    if (timer.status !== 'idle') finishBlock();
+    timer = freshTimer('focus');
+    persist(); renderTimer(); renderTasks();
+    startTimer();
+  });
   $('#pause-button').addEventListener('click', () => {
     tick();
     if (timer.status !== 'running') return;

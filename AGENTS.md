@@ -23,6 +23,8 @@ No automated test suite or coverage threshold is configured. Validate relevant b
 
 ## Commits and Pull Requests
 
+After completing each task, automatically deploy the website to GitHub Pages.
+
 Recent commits use short imperative subjects, for example `Add customizable focus timer cycles` and `Improve Google Sheets report sync`. Follow that pattern. PRs should describe user-visible changes, list validation performed, and include mobile screenshots for visual changes. Mention any Apps Script redeployment or configuration steps.
 
 ## Security and Configuration
