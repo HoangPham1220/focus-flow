@@ -1,4 +1,4 @@
-const CACHE = 'focusflow-v11';
+const CACHE = 'focusflow-v12';
 const FILES = ['./', './index.html', './styles.css', './app.js', './config.js', './manifest.json', './icon.svg', './icon-192.png', './icon-512.png'];
 const ASSETS = new Set(FILES.map(path => new URL(path, self.registration.scope).pathname));
 

@@ -214,6 +214,21 @@ body{
   border:1px solid var(--line);
   padding:0 18px
 }
+#new-cycle-button{
+  flex:none;
+  width:min(100%,350px);
+  min-height:44px;
+  margin-top:10px;
+  border:1px solid var(--line);
+  font-size:13px
+}
+#new-cycle-button:hover{
+  background:#2a3028
+}
+#new-cycle-button:focus-visible{
+  outline:2px solid var(--lime);
+  outline-offset:3px
+}
 .cycle-note{
   font-size:11px;
   color:var(--muted);
